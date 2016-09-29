@@ -22,35 +22,35 @@ import (
 
 	"github.com/cloudwan/gohan/db/transaction"
 	"github.com/cloudwan/gohan/extension"
-
 	"github.com/cloudwan/gohan/schema"
 	gohan_sync "github.com/cloudwan/gohan/sync"
 	"github.com/cloudwan/gohan/util"
+
+	"github.com/yudai/nmutex"
 )
 
 const (
-	statePrefix      = "/state/"
-	monitoringPrefix = "/monitoring/"
+	stateWatchPrefix = "/state_watch"
+	statePrefix      = stateWatchPrefix + "/state"
+	monitoringPrefix = stateWatchPrefix + "/monitoring"
 )
 
 //TODO(nati) integrate with watch process
-func startStateUpdatingProcess(server *Server) {
-
+func startStateWatchProcess(server *Server) {
 	stateResponseChan := make(chan *gohan_sync.Event)
 	stateStopChan := make(chan bool)
 
-	if _, err := server.sync.Fetch(statePrefix); err != nil {
-		server.sync.Update(statePrefix, "")
-	}
-
-	if _, err := server.sync.Fetch(monitoringPrefix); err != nil {
-		server.sync.Update(monitoringPrefix, "")
+	for _, toCreate := range []string{stateWatchPrefix, statePrefix, monitoringPrefix} {
+		if _, err := server.sync.Fetch(toCreate); err != nil {
+			server.sync.Update(toCreate, "")
+		}
 	}
 
 	go func() {
 		defer util.LogFatalPanic(log)
+
 		for server.running {
-			lockKey := lockPath + "state"
+			lockKey := lockPath + "state_watch"
 			err := server.sync.Lock(lockKey, true)
 			if err != nil {
 				log.Warning("Can't start state watch process due to lock", err)
@@ -61,70 +61,49 @@ func startStateUpdatingProcess(server *Server) {
 				server.sync.Unlock(lockKey)
 			}()
 
-			err = server.sync.Watch(statePrefix, stateResponseChan, stateStopChan)
+			err = server.sync.Watch(stateWatchPrefix, stateResponseChan, stateStopChan)
 			if err != nil {
-				log.Error(fmt.Sprintf("sync watch error: %s", err))
+				log.Error(fmt.Sprintf("sync state watch error: %s", err))
 			}
 		}
 	}()
+
+	mutex := nmutex.New()
+
 	go func() {
 		defer util.LogFatalPanic(log)
 		for server.running {
 			response := <-stateResponseChan
-			go func() {
-				err := StateUpdate(response, server)
+
+			unlock := mutex.Lock(response.Key)
+
+			go func(ul nmutex.UnlockFunc) {
+				defer ul()
+
+				var err error
+				if strings.HasPrefix(response.Key, statePrefix) {
+					err = StateUpdate(response, server)
+				} else if strings.HasPrefix(response.Key, monitoringPrefix) {
+					err = MonitoringUpdate(response, server)
+				}
 				if err != nil {
 					log.Warning(fmt.Sprintf("error during state update: %s", err))
 				}
 				log.Info("Completed StateUpdate")
-			}()
+			}(unlock)
 		}
+
 		stateStopChan <- true
-	}()
-	monitoringResponseChan := make(chan *gohan_sync.Event)
-	monitoringStopChan := make(chan bool)
-	go func() {
-		defer util.LogFatalPanic(log)
-		for server.running {
-			lockKey := lockPath + "monitoring"
-			err := server.sync.Lock(lockKey, true)
-			if err != nil {
-				log.Warning("Can't start state watch process due to lock", err)
-				time.Sleep(5 * time.Second)
-				continue
-			}
-			defer func() {
-				server.sync.Unlock(lockKey)
-			}()
-			err = server.sync.Watch(monitoringPrefix, monitoringResponseChan, monitoringStopChan)
-			if err != nil {
-				log.Error(fmt.Sprintf("sync watch error: %s", err))
-			}
-		}
-	}()
-	go func() {
-		defer util.LogFatalPanic(log)
-		for server.running {
-			response := <-monitoringResponseChan
-			go func() {
-				err := MonitoringUpdate(response, server)
-				if err != nil {
-					log.Warning(fmt.Sprintf("error during monitoring update: %s", err))
-				}
-				log.Info("Completed MonitoringUpdate")
-			}()
-		}
-		monitoringStopChan <- true
 	}()
 }
 
-func stopStateUpdatingProcess(server *Server) {
+func stopStateWatchProcess(server *Server) {
 }
 
 //StateUpdate updates the state in the db based on the sync event
 func StateUpdate(response *gohan_sync.Event, server *Server) error {
 	dataStore := server.db
-	schemaPath := "/" + strings.TrimPrefix(response.Key, statePrefix)
+	schemaPath := "/" + strings.TrimPrefix(response.Key, statePrefix+"/")
 	var curSchema = schema.GetSchemaByPath(schemaPath)
 	if curSchema == nil || !curSchema.StateVersioning() {
 		log.Debug("State update on unexpected path '%s'", schemaPath)
@@ -209,7 +188,7 @@ func StateUpdate(response *gohan_sync.Event, server *Server) error {
 //MonitoringUpdate updates the state in the db based on the sync event
 func MonitoringUpdate(response *gohan_sync.Event, server *Server) error {
 	dataStore := server.db
-	schemaPath := "/" + strings.TrimPrefix(response.Key, monitoringPrefix)
+	schemaPath := "/" + strings.TrimPrefix(response.Key, monitoringPrefix+"/")
 	var curSchema = schema.GetSchemaByPath(schemaPath)
 	if curSchema == nil || !curSchema.StateVersioning() {
 		log.Debug("Monitoring update on unexpected path '%s'", schemaPath)
@@ -235,8 +214,9 @@ func MonitoringUpdate(response *gohan_sync.Event, server *Server) error {
 	if err != nil {
 		return err
 	}
+
 	if resourceState.ConfigVersion != resourceState.StateVersion {
-		log.Debug("Skipping MonitoringUpdate, because config version (%s) != state version (%s)",
+		log.Debug("Skipping MonitoringUpdate, because config version (%d) != state version (%d)",
 			resourceState.ConfigVersion, resourceState.StateVersion)
 		return nil
 	}
@@ -246,6 +226,8 @@ func MonitoringUpdate(response *gohan_sync.Event, server *Server) error {
 		return fmt.Errorf("No version in monitoring information")
 	}
 	if resourceState.ConfigVersion != int64(monitoringVersion) {
+		log.Debug("Dropping MonitoringUpdate, because config version (%d) != input monitoring version (%d)",
+			resourceState.ConfigVersion, monitoringVersion)
 		return nil
 	}
 	resourceState.Monitoring, ok = response.Data["monitoring"].(string)
