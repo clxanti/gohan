@@ -62,6 +62,10 @@ logging:
         enabled: true
         level: INFO
 
+# a list of requests that do not require a valid token / authorization
+request_whitelist:
+    - "/gohan/v0.1/schemas"
+
 extension:
   default: gohanscript
   use:

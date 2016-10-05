@@ -26,6 +26,7 @@ import (
 	"github.com/cloudwan/gohan/schema"
 	"github.com/go-martini/martini"
 	"github.com/rackspace/gophercloud"
+	"github.com/cloudwan/gohan/util"
 )
 
 const webuiPATH = "/webui/"
@@ -148,6 +149,23 @@ func HTTPJSONError(res http.ResponseWriter, err string, code int) {
 	http.Error(res, string(responseJSON), code)
 }
 
+//do not verify token becase the request is whitelisted and can always be executed
+func doNotVerifyToken(tokenID string) (schema.Authorization, error) {
+	return schema.NewAuthorization("whitelist_tenant_id", "whitelist_tenant_name", "whitelist_auth_token", []string{"admin"}, nil), nil
+}
+
+//check whether a given path is whitelisted in the configuration
+func isWhiteListed(path string) bool {
+	config := util.GetConfig()
+	whiteListRequests := config.GetStringList("request_whitelist", []string{})
+	for _, r := range whiteListRequests {
+		if r == path {
+			return true
+		}
+	}
+	return false
+}
+
 //Authentication authenticates user using keystone
 func Authentication() martini.Handler {
 	return func(res http.ResponseWriter, req *http.Request, identityService IdentityService, c martini.Context) {
@@ -176,7 +194,17 @@ func Authentication() martini.Handler {
 			return
 		}
 
-		auth, err := identityService.VerifyToken(authToken)
+		var (
+			auth	schema.Authorization
+			err	error
+		)
+
+		if isWhiteListed(req.URL.Path) {
+			auth, err = doNotVerifyToken(authToken)
+		} else {
+			auth, err = identityService.VerifyToken(authToken)
+		}
+
 		if err != nil {
 			HTTPJSONError(res, err.Error(), http.StatusUnauthorized)
 		}
