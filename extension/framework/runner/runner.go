@@ -18,8 +18,6 @@ package runner
 import (
 	"fmt"
 	"io/ioutil"
-	"os"
-	"path/filepath"
 	"regexp"
 
 	"github.com/cloudwan/gohan/extension/framework/buflog"
@@ -27,6 +25,7 @@ import (
 	"github.com/robertkrimen/otto"
 	"github.com/robertkrimen/otto/ast"
 	"github.com/robertkrimen/otto/parser"
+	"path/filepath"
 )
 
 const (
@@ -51,6 +50,9 @@ type metaError struct {
 	error
 }
 
+const defaultStyle = "\x1b[0m"
+const cyanColor = "\x1b[36m"
+
 var setUpPattern = regexp.MustCompile("^setUp$")
 var tearDownPattern = regexp.MustCompile("^tearDown$")
 var testPattern = regexp.MustCompile("^test.*")
@@ -65,7 +67,7 @@ func NewTestRunner(testFileName string, printAllLogs bool, testFilter string) *T
 }
 
 // Run performs extension tests from the file specified at runner's creation
-func (runner *TestRunner) Run() TestRunnerErrors {
+func (runner *TestRunner) Run(thisJob int) TestRunnerErrors {
 	src, err := ioutil.ReadFile(runner.testFileName)
 	if err != nil {
 		return generalError(fmt.Errorf("Failed to read file '%s': %s", runner.testFileName, err.Error()))
@@ -90,19 +92,12 @@ func (runner *TestRunner) Run() TestRunnerErrors {
 		}
 	}
 
-	env := NewEnvironment(runner.testFileName, src)
-
-	directory, _ := os.Getwd()
-	if err := os.Chdir(filepath.Dir(runner.testFileName)); err != nil {
-		return generalError(fmt.Errorf("Failed to change directory to '%s': %s",
-			filepath.Dir(runner.testFileName),
-			err.Error()))
-	}
-	defer os.Chdir(directory)
+	workingDirectory, _ := filepath.Abs(filepath.Dir(runner.testFileName))
+	env := NewEnvironment(workingDirectory, runner.testFileName, src)
 
 	errors := TestRunnerErrors{}
 	for _, test := range tests {
-		errors[test] = runner.runTest(test, env)
+		errors[test] = runner.runTest(thisJob, test, env)
 
 		if _, ok := errors[test].(metaError); ok {
 			return generalError(errors[test])
@@ -118,7 +113,7 @@ func generalError(err error) TestRunnerErrors {
 	}
 }
 
-func (runner *TestRunner) runTest(testName string, env *Environment) (err error) {
+func (runner *TestRunner) runTest(thisJob int, testName string, env *Environment) (err error) {
 	if !runner.printAllLogs {
 		buflog.Buf().Activate()
 		defer func() {
@@ -130,7 +125,7 @@ func (runner *TestRunner) runTest(testName string, env *Environment) (err error)
 	}
 
 	defer func() {
-		runner.printTestResult(testName, err)
+		runner.printTestResult(thisJob, testName, err)
 	}()
 
 	err = env.InitializeEnvironment()
@@ -178,12 +173,12 @@ func (runner *TestRunner) runTest(testName string, env *Environment) (err error)
 	return
 }
 
-func (runner *TestRunner) printTestResult(testName string, testErr error) {
+func (runner *TestRunner) printTestResult(thisJob int, testName string, testErr error) {
 	if testErr != nil {
-		log.Error(fmt.Sprintf("\t FAIL (%s:%s): %s",
-			runner.testFileName, testName, testErr.Error()))
+		log.Error(fmt.Sprintf("%s[JOB: %d]%s\tFAIL (%s:%s): %s",
+			cyanColor, thisJob, defaultStyle, runner.testFileName, testName, testErr.Error()))
 	} else {
-		log.Notice("\t PASS (%s:%s)",
-			runner.testFileName, testName)
+		log.Notice("%s[JOB: %d]%s\tPASS (%s:%s)",
+			cyanColor, thisJob, defaultStyle, runner.testFileName, testName)
 	}
 }

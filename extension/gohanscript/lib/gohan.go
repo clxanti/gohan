@@ -17,6 +17,7 @@ package lib
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/cloudwan/gohan/db"
@@ -108,7 +109,8 @@ func GetConfig(key string, defaultValue interface{}) interface{} {
 //GohanLoadSchema loads schema from path.
 func GohanLoadSchema(src string) (interface{}, error) {
 	manager := schema.GetManager()
-	err := manager.LoadSchemaFromFile(src)
+	wd, _ := os.Getwd()
+	err := manager.LoadSchemaFromFile(wd, src)
 	return nil, err
 }
 

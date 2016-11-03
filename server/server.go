@@ -63,7 +63,7 @@ type Server struct {
 	queue            *job.Queue
 }
 
-func (server *Server) mapRoutes() {
+func (server *Server) mapRoutes(workingDirectory string) {
 	config := util.GetConfig()
 	schemaManager := schema.GetManager()
 	MapNamespacesRoutes(server.martini)
@@ -92,7 +92,7 @@ func (server *Server) mapRoutes() {
 	if err != nil {
 		log.Info(err.Error())
 	}
-	schemaManager.LoadExtensions(extensionList)
+	schemaManager.LoadExtensions(workingDirectory, extensionList)
 
 	namespaceSchema, _ := schemaManager.Schema("namespace")
 	if namespaceSchema == nil {
@@ -165,10 +165,16 @@ func NewServer(configFile string) (*Server, error) {
 	manager := schema.GetManager()
 	config := util.GetConfig()
 	config.ReadConfig(configFile)
+
+	// NOTE: this is the only place in the Gohan where current directory is changed
 	err := os.Chdir(path.Dir(configFile))
 	if err != nil {
 		return nil, fmt.Errorf("Config load error: %s", err)
 	}
+
+	// NOTE: this is the only place in the Gohan where current directory is retrieved
+	workingDirectory, _ := os.Getwd()
+
 	err = l.SetUpLogging(config)
 	if err != nil {
 		return nil, fmt.Errorf("Logging setup error: %s", err)
@@ -192,7 +198,7 @@ func NewServer(configFile string) (*Server, error) {
 		port = "9091"
 	}
 
-	setupEditor(server)
+	setupEditor(workingDirectory, server)
 
 	server.timelimit = config.GetInt("extension/timelimit", 30)
 	server.extensions = config.GetStringList("extension/use", []string{
@@ -222,7 +228,8 @@ func NewServer(configFile string) (*Server, error) {
 	if schemaFiles == nil {
 		log.Fatal("No schema specified in configuraion")
 	} else {
-		err = manager.LoadSchemasFromFiles(schemaFiles...)
+		wd, _ := os.Getwd()
+		err = manager.LoadSchemasFromFiles(wd, schemaFiles...)
 		if err != nil {
 			return nil, fmt.Errorf("invalid schema: %s", err)
 		}
@@ -339,7 +346,7 @@ func NewServer(configFile string) (*Server, error) {
 			SkipLogging: true,
 		}))
 	}
-	server.mapRoutes()
+	server.mapRoutes(workingDirectory)
 
 	maxWorkerCount := config.GetInt("workers", 100)
 	server.queue = job.NewQueue(uint(maxWorkerCount))

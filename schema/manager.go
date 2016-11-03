@@ -18,14 +18,13 @@ package schema
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/xeipuuv/gojsonschema"
 
 	"github.com/cloudwan/gohan/util"
+	"path/filepath"
 )
 
 const nobodyPrincipal = "Nobody"
@@ -254,9 +253,9 @@ func (manager *Manager) ValidateSchema(schemaPath, filePath string) error {
 }
 
 //LoadSchemasFromFiles calls LoadSchemaFromFile for each of provided filePaths
-func (manager *Manager) LoadSchemasFromFiles(filePaths ...string) error {
+func (manager *Manager) LoadSchemasFromFiles(workingDirectory string, filePaths ...string) error {
 	for _, filePath := range filePaths {
-		err := manager.LoadSchemaFromFile(filePath)
+		err := manager.LoadSchemaFromFile(workingDirectory, filePath)
 		if err != nil {
 			return err
 		}
@@ -265,23 +264,15 @@ func (manager *Manager) LoadSchemasFromFiles(filePaths ...string) error {
 }
 
 //LoadSchemaFromFile loads schema from json file
-func (manager *Manager) LoadSchemaFromFile(filePath string) error {
-	log.Info("Loading schema %s ...", filePath)
-	schemas, err := util.LoadMap(filePath)
+func (manager *Manager) LoadSchemaFromFile(workingDirectory string, filePath string) error {
+	log.Info("Loading schema: %s (working directory: %s)...", filePath, workingDirectory)
+	schemas, err := util.LoadMap(filepath.Join(workingDirectory, filePath))
 	if err != nil {
 		return err
 	}
 
 	if !(strings.HasPrefix(filePath, "http://") || strings.HasPrefix(filePath, "https://") || strings.HasPrefix(filePath, "embed://")) {
-		workingDirectory, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-		err = os.Chdir(filepath.Dir(filePath))
-		if err != nil {
-			return err
-		}
-		defer os.Chdir(workingDirectory)
+		workingDirectory = filepath.Dir(filepath.Join(workingDirectory, filePath))
 	}
 
 	namespaces, _ := schemas["namespaces"].([]interface{})
@@ -356,7 +347,7 @@ func (manager *Manager) LoadSchemaFromFile(filePath string) error {
 	extensions, _ := schemas["extensions"].([]interface{})
 	if extensions != nil {
 		for _, extensionData := range extensions {
-			extension, err := NewExtension(extensionData)
+			extension, err := NewExtension(workingDirectory, extensionData)
 			if err != nil {
 				return err
 			}
@@ -380,9 +371,9 @@ func (manager *Manager) LoadPolicies(policies []*Resource) error {
 }
 
 //LoadExtensions register extension by db object
-func (manager *Manager) LoadExtensions(extensions []*Resource) error {
+func (manager *Manager) LoadExtensions(workingDirectory string, extensions []*Resource) error {
 	for _, extensionData := range extensions {
-		extension, err := NewExtension(extensionData.Data())
+		extension, err := NewExtension(workingDirectory, extensionData.Data())
 		if err != nil {
 			return err
 		}

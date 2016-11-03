@@ -185,14 +185,16 @@ It's especially useful to validate schema files against gohan meta-schema.`,
 				util.ExitFatalf("At least one document should be specified for validation\n")
 			}
 
+			wd, _ := os.Getwd()
+
 			manager := schema.GetManager()
-			err := manager.LoadSchemaFromFile(schemaPath)
+			err := manager.LoadSchemaFromFile(wd, schemaPath)
 			if err != nil {
 				util.ExitFatal("Failed to parse schema:", err)
 			}
 
 			for _, documentPath := range documentPaths {
-				err = manager.LoadSchemaFromFile(documentPath)
+				err = manager.LoadSchemaFromFile(wd, documentPath)
 				if err != nil {
 					util.ExitFatalf("Schema is not valid, see errors below:\n%s\n", err)
 				}
@@ -272,8 +274,10 @@ Useful for development purposes.`,
 			}
 			metaSchemaFile := c.String("meta-schema")
 
+			wd, _ := os.Getwd()
+
 			schemaManager := schema.GetManager()
-			err := schemaManager.LoadSchemasFromFiles(schemaFile, metaSchemaFile)
+			err := schemaManager.LoadSchemasFromFiles(wd, schemaFile, metaSchemaFile)
 			if err != nil {
 				util.ExitFatal("Error loading schema:", err)
 			}
@@ -327,6 +331,7 @@ documentation for detail information about writing tests.`,
 			cli.BoolFlag{Name: "verbose, v", Usage: "Print logs for passing tests"},
 			cli.StringFlag{Name: "config-file,c", Value: "", Usage: "Config file path"},
 			cli.StringFlag{Name: "run-test,r", Value: "", Usage: "Run only tests matching specified regex"},
+			cli.StringFlag{Name: "jobs,j", Value: "", Usage: "Number of parallel jobs to run. Default: 1"},
 		},
 		Action: framework.TestExtensions,
 	}

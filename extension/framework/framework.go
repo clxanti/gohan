@@ -27,7 +27,11 @@ import (
 	"github.com/cloudwan/gohan/util"
 	"github.com/codegangsta/cli"
 	logging "github.com/op/go-logging"
+	"sync"
 )
+
+const defaultStyle = "\x1b[0m"
+const cyanColor = "\x1b[36m"
 
 var log = logging.MustGetLogger("extest")
 
@@ -37,6 +41,11 @@ func TestExtensions(c *cli.Context) {
 
 	var config *util.Config
 	configFilePath := c.String("config-file")
+	jobs := c.Int("jobs")
+
+	if jobs <= 0 {
+		jobs = 1
+	}
 
 	if configFilePath != "" && !c.Bool("verbose") {
 		config = util.GetConfig()
@@ -56,21 +65,55 @@ func TestExtensions(c *cli.Context) {
 	testFiles := getTestFiles(c.Args())
 
 	//logging from config is a limited printAllLogs option
-	returnCode := RunTests(testFiles, c.Bool("verbose") || config != nil, c.String("run-test"))
+	returnCode := RunTests(testFiles, c.Bool("verbose") || config != nil, c.String("run-test"), jobs)
 	os.Exit(returnCode)
 }
 
 // RunTests runs extension tests for CLI
-func RunTests(testFiles []string, printAllLogs bool, testFilter string) (returnCode int) {
+func RunTests(testFiles []string, printAllLogs bool, testFilter string, jobs int) (returnCode int) {
 	errors := map[string]map[string]error{}
-	for _, testFile := range testFiles {
-		testRunner := runner.NewTestRunner(testFile, printAllLogs, testFilter)
-		errors[testFile] = testRunner.Run()
-		if err, ok := errors[testFile][runner.GeneralError]; ok {
-			log.Error(fmt.Sprintf("\t ERROR (%s): %v", testFile, err))
-		}
+	var group sync.WaitGroup
+	var groupLock sync.Mutex
+
+	group.Add(jobs);
+
+	for job := 0; job < jobs; job++ {
+		go func(thisJob int) {
+			defer group.Done()
+
+			log.Info(fmt.Sprintf("%s[JOB: %d]%s started", cyanColor, thisJob + 1, defaultStyle))
+
+			idx := 0
+
+			for _, testFile := range testFiles {
+				idx++
+
+				if idx % jobs != thisJob {
+					continue
+				}
+
+				testRunner := runner.NewTestRunner(testFile, printAllLogs, testFilter)
+
+				result := testRunner.Run(thisJob)
+
+				if err, ok := result[runner.GeneralError]; ok {
+					log.Error(fmt.Sprintf("%s[JOB: %d]%s\tERROR (%s): %v",
+						cyanColor, thisJob + 1, defaultStyle, testFile, err))
+				}
+
+				groupLock.Lock()
+				errors[testFile] = result
+				groupLock.Unlock()
+			}
+
+			log.Info(fmt.Sprintf("%s[JOB: %d]%s stopped", cyanColor, thisJob + 1, defaultStyle))
+		}(job)
 	}
 
+	// wait for all workers
+	group.Wait()
+
+	// make and print summary
 	summary := makeSummary(errors)
 	printSummary(summary, printAllLogs)
 

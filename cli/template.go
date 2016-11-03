@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path"
 	"regexp"
 
 	"github.com/cloudwan/gohan/schema"
@@ -72,13 +71,12 @@ func doTemplate(c *cli.Context) {
 		util.ExitFatal(err)
 		return
 	}
-	pwd, _ := os.Getwd()
-	os.Chdir(path.Dir(configFile))
+	wd, _ := os.Getwd()
 	schemaFiles := config.GetStringList("schemas", nil)
 	if schemaFiles == nil {
 		util.ExitFatal("No schema specified in configuraion")
 	} else {
-		err = manager.LoadSchemasFromFiles(schemaFiles...)
+		err = manager.LoadSchemasFromFiles(wd, schemaFiles...)
 		if err != nil {
 			util.ExitFatal(err)
 			return
@@ -100,7 +98,6 @@ func doTemplate(c *cli.Context) {
 		util.ExitFatal(err)
 		return
 	}
-	os.Chdir(pwd)
 	fmt.Println(output)
 }
 

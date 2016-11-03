@@ -45,20 +45,22 @@ const (
 // Environment of a single test runner
 type Environment struct {
 	*gohan_otto.Environment
-	mockedFunctions []string
-	testFileName    string
-	testSource      []byte
-	dbFile          *os.File
-	dbConnection    db.DB
-	dbTransactions  []transaction.Transaction
+	mockedFunctions  []string
+	testFileName     string
+	testSource       []byte
+	dbFile           *os.File
+	dbConnection     db.DB
+	dbTransactions   []transaction.Transaction
+	workingDirectory string
 }
 
 // NewEnvironment creates a new test environment based on provided DB connection
-func NewEnvironment(testFileName string, testSource []byte) *Environment {
+func NewEnvironment(workingDirectory string, testFileName string, testSource []byte) *Environment {
 	env := &Environment{
-		mockedFunctions: []string{},
-		testFileName:    testFileName,
-		testSource:      testSource,
+		mockedFunctions:  []string{},
+		testFileName:     testFileName,
+		testSource:       testSource,
+		workingDirectory: workingDirectory,
 	}
 	return env
 }
@@ -327,7 +329,7 @@ func (env *Environment) loadSchemas() error {
 
 	manager := schema.GetManager()
 	for _, schema := range schemaFilenames {
-		err = manager.LoadSchemaFromFile(schema)
+		err = manager.LoadSchemaFromFile(env.workingDirectory, schema)
 		if err != nil {
 			return err
 		}

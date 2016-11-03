@@ -21,6 +21,7 @@ import (
 	"github.com/cloudwan/gohan/extension/golang"
 	"github.com/cloudwan/gohan/schema"
 	"github.com/cloudwan/gohan/util"
+	"os"
 )
 
 //GetSchema returns the schema filtered and trimmed for a specific user or nil when the user shouldn't see it at all
@@ -54,7 +55,7 @@ func GetSchema(s *schema.Schema, authorization schema.Authorization) (result *sc
 	return
 }
 
-func setupEditor(server *Server) {
+func setupEditor(workingDirectory string, server *Server) {
 	manager := schema.GetManager()
 	config := util.GetConfig()
 	editableSchemaFile := config.GetString("editable_schema", "")
@@ -173,13 +174,14 @@ func setupEditor(server *Server) {
 				}
 			}
 			util.SaveFile(editableSchemaFile, schemasInFile)
-			err = manager.LoadSchemaFromFile(editableSchemaFile)
+			wd, _ := os.Getwd()
+			err = manager.LoadSchemaFromFile(wd, editableSchemaFile)
 			if err != nil {
 				return err
 			}
 			server.initDB()
 			server.resetRouter()
-			server.mapRoutes()
+			server.mapRoutes(workingDirectory)
 			return nil
 		})
 }

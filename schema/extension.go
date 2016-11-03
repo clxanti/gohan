@@ -18,14 +18,13 @@ package schema
 import (
 	"fmt"
 	"net/url"
-	"os"
 	"path/filepath"
 	"regexp"
 
 	"github.com/cloudwan/gohan/util"
 )
 
-//DefaultExtension configuraion
+//DefaultExtension configuration
 var DefaultExtension = "javascript"
 
 //Extension is a small plugin for gohan
@@ -36,7 +35,7 @@ type Extension struct {
 }
 
 //NewExtension returns new extension from object
-func NewExtension(raw interface{}) (*Extension, error) {
+func NewExtension(workingDirectory string, raw interface{}) (*Extension, error) {
 	typeData := raw.(map[string](interface{}))
 	extension := &Extension{}
 	extension.ID, _ = typeData["id"].(string)
@@ -50,10 +49,6 @@ func NewExtension(raw interface{}) (*Extension, error) {
 			return nil, err
 		}
 		if isURLRelative := url.Scheme == "file" && url.Host == "."; isURLRelative {
-			workingDirectory, err := os.Getwd()
-			if err != nil {
-				return nil, err
-			}
 			url.Host = ""
 			url.Path = filepath.Join(workingDirectory, url.Path)
 		}
@@ -72,7 +67,7 @@ func NewExtension(raw interface{}) (*Extension, error) {
 		remoteCode, err := util.GetContent(extension.URL)
 		extension.Code += string(remoteCode)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load remote code: %s", err)
+			return nil, fmt.Errorf("failed to load remote code %s: %s", extension.URL, err)
 		}
 	}
 	return extension, nil
