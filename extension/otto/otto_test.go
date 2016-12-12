@@ -41,7 +41,7 @@ func newEnvironment() *otto.Environment {
 	timelimit := time.Duration(1) * time.Second
 
 	return otto.NewEnvironment("otto_test",
-		testDB, &middleware.FakeIdentity{}, timelimit)
+		testDB, &middleware.FakeIdentity{}, timelimit, testEtcd)
 }
 
 var _ = Describe("Otto extension manager", func() {
@@ -1549,6 +1549,37 @@ var _ = Describe("Otto extension manager", func() {
 			})
 		})
 	})
+	Describe("Using gohan_etcd_watch builtin", func() {
+		It("Should return correct value", func() {
+			extension, err := schema.NewExtension(map[string]interface{}{
+				"id": "test_extension",
+				"code": `
+					gohan_register_handler(
+						"test_event",
+					 	function(context) {
+							result = gohan_etcd_watch("non-existing-path", 1000);
+
+							if (result === null)
+								context.resp = "null";
+							else
+								context.resp = "object";
+						}
+					);
+					`,
+				"path": ".*",
+			})
+			Expect(err).ToNot(HaveOccurred())
+			extensions := []*schema.Extension{extension}
+			env := newEnvironment()
+			Expect(env.LoadExtensionsForPath(extensions, "test_path")).To(Succeed())
+
+			context := map[string]interface{}{}
+			Expect(env.HandleEvent("test_event", context)).To(Succeed())
+			Expect(context).To(HaveKeyWithValue("resp", HaveKeyWithValue("result", "null")))
+		})
+
+
+	})
 	var _ = Describe("Concurrency race", func() {
 		var (
 			env *otto.Environment
@@ -1639,7 +1670,8 @@ var _ = Describe("Otto extension manager", func() {
 				})
 				Expect(err).ToNot(HaveOccurred())
 				extensions := []*schema.Extension{extension}
-				env := otto.NewEnvironment("otto_test", testDB, &middleware.FakeIdentity{}, time.Duration(100))
+				env := otto.NewEnvironment("otto_test", testDB, &middleware.FakeIdentity{},
+					time.Duration(100), testEtcd)
 				Expect(env.LoadExtensionsForPath(extensions, "test_path")).To(Succeed())
 
 				context := map[string]interface{}{

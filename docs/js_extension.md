@@ -291,6 +291,11 @@ Read file from path
 
 Check if dir
 
+- gohan_etcd_watch(path, timeout)
+
+Watch a given path in ETCD. Return an event or null if timeout
+occurred and there were no events for a given path.   
+
 # Testing javascript extensions
 
 You can test extensions using a testing tool bundled with Gohan with the command

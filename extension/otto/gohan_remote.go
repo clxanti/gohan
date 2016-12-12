@@ -25,6 +25,9 @@ import (
 	"github.com/cloudwan/gohan/util"
 	//Import otto underscore lib
 	_ "github.com/robertkrimen/otto/underscore"
+	"github.com/cloudwan/gohan/sync"
+	"time"
+	"fmt"
 )
 
 //SetUp sets up vm to with environment
@@ -106,7 +109,7 @@ func init() {
 			},
 			"gohan_ssh_open": func(call otto.FunctionCall) otto.Value {
 				if len(call.ArgumentList) != 2 {
-					panic("Wrong number of arguments in gohan_netconf_open call.")
+					panic("Wrong number of arguments in gohan_ssh_open call.")
 				}
 				rawHost, _ := call.Argument(0).Export()
 				host, ok := rawHost.(string)
@@ -142,7 +145,7 @@ func init() {
 			},
 			"gohan_ssh_close": func(call otto.FunctionCall) otto.Value {
 				if len(call.ArgumentList) != 1 {
-					panic("Wrong number of arguments in gohan_netconf_close call.")
+					panic("Wrong number of arguments in gohan_ssh_close call.")
 				}
 				rawSession, _ := call.Argument(0).Export()
 				s, ok := rawSession.(*ssh.Session)
@@ -154,7 +157,7 @@ func init() {
 			},
 			"gohan_ssh_exec": func(call otto.FunctionCall) otto.Value {
 				if len(call.ArgumentList) != 2 {
-					panic("Wrong number of arguments in gohan_netconf_exec call.")
+					panic("Wrong number of arguments in gohan_ssh_exec call.")
 				}
 				rawSession, _ := call.Argument(0).Export()
 				s, ok := rawSession.(*ssh.Session)
@@ -179,6 +182,74 @@ func init() {
 				}
 				value, _ := vm.ToValue(resp)
 				return value
+			},
+			"gohan_etcd_watch": func(call otto.FunctionCall) otto.Value {
+				if len(call.ArgumentList) != 2 {
+					panic("Wrong number of arguments in gohan_etcd_watch call.")
+				}
+
+				pathRaw, err := call.Argument(0).Export()
+
+				if err != nil {
+					ThrowOttoException(&call, "Failed to read first argument")
+				}
+
+				switch pathRaw.(type) {
+				case string: break
+				default:
+					ThrowOttoException(&call, "Invalid type of first argument: expected a string")
+				}
+
+				path := pathRaw.(string)
+
+				timeoutMsecRaw, err := call.Argument(1).Export()
+
+				if err != nil {
+					ThrowOttoException(&call, "Failed to read second argument")
+				}
+
+				switch timeoutMsecRaw.(type) {
+				case int64: break
+				default:
+					ThrowOttoException(&call, "Invalid type of second argument: expected an int64")
+				}
+
+				timeoutMsec := timeoutMsecRaw.(int64)
+
+				eventChannel := make(chan *sync.Event)
+				stopChannel := make(chan bool)
+
+				go func() {
+					err = env.Sync.Watch(path, eventChannel, stopChannel)
+
+					fmt.Println("*** done")
+
+					if err != nil {
+						ThrowOttoException(&call, "Failed to create ETCD watch")
+					}
+				}()
+
+				timer := time.NewTimer(time.Duration(timeoutMsec) * time.Millisecond)
+
+				select {
+				case event := <- eventChannel:
+					fmt.Println("*** event")
+					timer.Stop()
+
+					resp := map[string] interface{}{}
+
+					resp["action"] = event.Action
+					resp["data"] = event.Data
+					resp["key"] = event.Key
+
+					value, _ := vm.ToValue(resp)
+					return value
+
+				case <- timer.C:
+					fmt.Println("*** timeout")
+					stopChannel <- true
+					return otto.NullValue()
+				}
 			},
 		}
 		for name, object := range builtins {
