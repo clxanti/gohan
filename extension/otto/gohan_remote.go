@@ -25,6 +25,9 @@ import (
 	"github.com/cloudwan/gohan/util"
 	//Import otto underscore lib
 	_ "github.com/robertkrimen/otto/underscore"
+	"github.com/cloudwan/gohan/sync"
+	"time"
+	"fmt"
 )
 
 //SetUp sets up vm to with environment
@@ -106,7 +109,7 @@ func init() {
 			},
 			"gohan_ssh_open": func(call otto.FunctionCall) otto.Value {
 				if len(call.ArgumentList) != 2 {
-					panic("Wrong number of arguments in gohan_netconf_open call.")
+					panic("Wrong number of arguments in gohan_ssh_open call.")
 				}
 				rawHost, _ := call.Argument(0).Export()
 				host, ok := rawHost.(string)
@@ -142,7 +145,7 @@ func init() {
 			},
 			"gohan_ssh_close": func(call otto.FunctionCall) otto.Value {
 				if len(call.ArgumentList) != 1 {
-					panic("Wrong number of arguments in gohan_netconf_close call.")
+					panic("Wrong number of arguments in gohan_ssh_close call.")
 				}
 				rawSession, _ := call.Argument(0).Export()
 				s, ok := rawSession.(*ssh.Session)
@@ -154,7 +157,7 @@ func init() {
 			},
 			"gohan_ssh_exec": func(call otto.FunctionCall) otto.Value {
 				if len(call.ArgumentList) != 2 {
-					panic("Wrong number of arguments in gohan_netconf_exec call.")
+					panic("Wrong number of arguments in gohan_ssh_exec call.")
 				}
 				rawSession, _ := call.Argument(0).Export()
 				s, ok := rawSession.(*ssh.Session)
@@ -179,6 +182,148 @@ func init() {
 				}
 				value, _ := vm.ToValue(resp)
 				return value
+			},
+			"gohan_etcd_watch": func(call otto.FunctionCall) otto.Value {
+				// check the number of arguments
+				if len(call.ArgumentList) != 2 {
+					panic("Wrong number of arguments in gohan_etcd_watch call.")
+				}
+
+				// parse first argument: path string
+				rawPath, err := call.Argument(0).Export()
+
+				if err != nil {
+					ThrowOttoException(&call, "Failed to read first argument")
+				}
+
+				switch rawPath.(type) {
+				case string:
+				default:
+					ThrowOttoException(&call, "Invalid type of first argument: expected a string")
+				}
+
+				path := rawPath.(string)
+
+				// parse second argument: timeoutMsec int64 (int in JS)
+				rawTimeoutMilliseconds, err := call.Argument(1).Export()
+
+				if err != nil {
+					ThrowOttoException(&call, "Failed to read second argument")
+				}
+
+				switch rawTimeoutMilliseconds.(type) {
+				case int64:
+				default:
+					ThrowOttoException(&call, "Invalid type of second argument: expected an int64")
+				}
+
+				timeoutMilliseconds := rawTimeoutMilliseconds.(int64)
+
+				// start etcd watch in goroutine
+				watchEventChannel := make(chan *sync.Event, 32) // note: the size is arbitrary here
+				watchStopChannel := make(chan bool, 1)
+				watchDoneChannel := make(chan bool, 1)
+				watchErrorChannel := make(chan error, 1)
+
+				go func() {
+					err := env.Sync.Watch(path, watchEventChannel, watchStopChannel)
+
+					fmt.Println("*** watch done: " + fmt.Sprintf("%s %#v", err.Error(), err))
+
+					// if there was an error, pass it through the error channel
+					if err != nil {
+						watchErrorChannel <- err
+					}
+
+					// mark this watch as finished, no more events will be emitted
+					// after this channel is signaled
+					watchDoneChannel <- true
+				}()
+
+				// start timeout timer
+				timer := time.NewTimer(time.Duration(timeoutMilliseconds) * time.Millisecond)
+
+				var event *sync.Event
+
+				select {
+				case event = <-watchEventChannel:
+					// at least one event occurred, store this event and read all others if any
+					fmt.Println("*** event")
+
+				case <- timer.C:
+					// even if timeout has occurred, at the time of this call there may still be
+					// some events in the event channel so try to read them all
+					fmt.Println("*** timeout")
+
+				case err := <-watchErrorChannel:
+					// there was an error with the etcd watch - the watch is already stopped
+					// so we can safely proceed to exit
+					fmt.Println("*** error")
+					ThrowOttoException(&call, "Failed to watch etcd: " + err.Error())
+					return otto.NullValue()
+				}
+
+				// force watch to stop in order to avoid possible generation of more watch events
+				fmt.Println("*** send stop")
+				watchStopChannel <- true
+
+				// wait for the watch to finish and drain all events that are still generated
+				// note: these two operations are interlocked so that etcd watch is never
+				// able to overfill (and block) the channel
+				jsResponse := [] map[string]interface{}{}
+
+				done := false
+
+				for !done {
+					if event != nil {
+						jsEvent := map[string]interface{}{}
+
+  						jsEvent["action"] = event.Action
+						jsEvent["data"] = event.Data
+						jsEvent["key"] = event.Key
+
+						jsResponse = append(jsResponse, jsEvent)
+					}
+
+					fmt.Println("*** wait for event or done")
+
+					select {
+					case event = <- watchEventChannel:
+						continue
+
+					case <- watchDoneChannel:
+						done = true
+						continue
+					}
+				}
+
+				fmt.Println("*** done")
+
+				// drain remaining events into response
+				done = false
+
+				for !done {
+					select {
+					case event = <- watchEventChannel:
+						continue
+					default:
+						done = true
+						continue
+					}
+
+					jsEvent := map[string]interface{}{}
+
+					jsEvent["action"] = event.Action
+					jsEvent["data"] = event.Data
+					jsEvent["key"] = event.Key
+
+					jsResponse = append(jsResponse, jsEvent)
+				}
+
+				// return an array of etcd events to JS
+				fmt.Printf("*** return %v events", len(jsResponse))
+				jsValue, _ := vm.ToValue(jsResponse)
+				return jsValue
 			},
 		}
 		for name, object := range builtins {
