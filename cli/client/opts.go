@@ -22,9 +22,10 @@ import (
 	"time"
 
 	"github.com/op/go-logging"
+	"github.com/golang/go/src/pkg/strings"
 )
 
-var (
+const (
 	gohanEndpointURLKey       = "GOHAN_ENDPOINT_URL"
 	gohanServiceNameKey       = "GOHAN_SERVICE_NAME"
 	gohanRegionKey            = "GOHAN_REGION"
@@ -42,13 +43,17 @@ var (
 	incorrectValueForArgument = "Incorrect value for '%s' environment variable, should be %s"
 
 	defaultCachedSchemasPath = "/tmp/.cached-gohan-schemas"
+)
 
+var (
+	// output format
 	outputFormatKey    = "output-format"
 	outputFormatEnvKey = "GOHAN_OUTPUT_FORMAT"
 	outputFormatTable  = "table"
 	outputFormatJSON   = "json"
 	outputFormats      = []string{outputFormatTable, outputFormatJSON}
 
+	// verbosity
 	logLevelKey    = "verbosity"
 	logLevelEnvKey = "GOHAN_VERBOSITY"
 	logLevels      = []logging.Level{
@@ -59,9 +64,14 @@ var (
 	}
 	defaultLogLevel = logging.WARNING
 
+	// fields
+	fieldsKey    = "fields"
+	fieldsEnvKey = "GOHAN_FIELDS"
+
 	commonParams = map[string]struct{}{
 		outputFormatKey: struct{}{},
 		logLevelKey:     struct{}{},
+		fieldsKey:       struct{}{},
 	}
 )
 
@@ -80,6 +90,7 @@ type GohanClientCLIOpts struct {
 
 	outputFormat string
 	logLevel     logging.Level
+	fields       []string
 }
 
 // NewOptsFromEnv creates new Opts for GohanClientCLI using env variables
@@ -160,6 +171,15 @@ func NewOptsFromEnv() (*GohanClientCLIOpts, error) {
 		opts.logLevel = logLevel
 	}
 
+	fieldsOpt := os.Getenv(fieldsEnvKey)
+	if fieldsOpt != "" {
+		fields, err := findFields(fieldsOpt)
+		if err != nil {
+			return nil, err
+		}
+		opts.fields = fields
+	}
+
 	return &opts, nil
 }
 
@@ -170,6 +190,11 @@ func findOutputFormat(formatOpt interface{}) (string, error) {
 		}
 	}
 	return "", fmt.Errorf(incorrectOutputFormat, outputFormats)
+}
+
+func findFields(fieldsOpt interface{}) ([]string, error) {
+	//TODO: perform fields check against resource definition
+	return strings.Split(fieldsOpt.(string), ","), nil
 }
 
 func parseLogLevel(verbosityOpt interface{}) (logging.Level, error) {
