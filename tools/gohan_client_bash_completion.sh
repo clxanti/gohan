@@ -38,6 +38,7 @@ getUn_namedProperties()
 		fi
             done
         fi
+    IFS=$OIFS
     done
 }
 
@@ -66,6 +67,7 @@ getProperties()
 	elif [[ -z "${a// }" ]] ; then
             _wasProperties=0
 	fi
+    IFS=$OIFS
     done
 }
 
