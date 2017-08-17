@@ -22,7 +22,7 @@ gen:
 
 test:
 	@echo -e "$(OK_COLOR)==> Testing$(NO_COLOR)"
-	./tools/test_bashcompletion.sh
+	./tools/test_bash_completion.sh
 	./run_test.sh
 
 lint:
