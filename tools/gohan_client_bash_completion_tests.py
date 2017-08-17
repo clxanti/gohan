@@ -1,4 +1,4 @@
-#!/bin/env python2
+#!/usr/bin/python3
 import subprocess
 import unittest
 
@@ -39,7 +39,6 @@ class BashCompletionTest(unittest.TestCase):
 
     def run_complete(self, completion_file, program, command, expected):
         stdout,stderr = Completion().run(completion_file, program, command)
-        print(stdout)
         self.assertEqual(stdout.decode("utf-8"), expected + '\n')
 
 class GohanClientTestCases(BashCompletionTest):
