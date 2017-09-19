@@ -62,7 +62,7 @@ func (schemas *Schemas) Find(id string) goext.ISchema {
 	sch, ok := manager.Schema(id)
 
 	if !ok {
-		log.Warning("cannot find schema '%s'", id)
+		log.Warning("cannot find schema: %s", id)
 		return nil
 	}
 
@@ -170,6 +170,7 @@ type listFunc func(tx goext.ITransaction) ([]map[string]interface{}, uint64, err
 func (schema *Schema) listImpl(context goext.Context, list listFunc) ([]interface{}, error) {
 	resourceType, ok := schema.env.rawTypes[schema.ID()]
 	if !ok {
+		log.Warning("cannot find raw type for: %s", schema.ID())
 		return nil, ErrMissingType
 	}
 
