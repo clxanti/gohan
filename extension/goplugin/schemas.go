@@ -368,6 +368,15 @@ func setValue(field, value reflect.Value) {
 
 // CreateRaw creates a resource
 func (schema *Schema) CreateRaw(rawResource interface{}, context goext.Context) error {
+	return schema.create(rawResource, context, true)
+}
+
+// DbCreateRaw creates a resource without triggering events
+func (schema *Schema) DbCreateRaw(rawResource interface{}, context goext.Context) error {
+	return schema.create(rawResource, context, false)
+}
+
+func (schema *Schema) create(rawResource interface{}, context goext.Context, triggerEvents bool) error {
 	if !isPointer(rawResource) {
 		return ErrNotPointer
 	}
@@ -381,14 +390,16 @@ func (schema *Schema) CreateRaw(rawResource interface{}, context goext.Context) 
 			WithSchemaID(schema.ID()).
 			WithResource(schema.StructToMap(rawResource))
 		contextSetTransaction(contextCopy, tx)
-		return schema.createInTransaction(rawResource, contextCopy, tx)
+		return schema.createInTransaction(rawResource, contextCopy, tx, triggerEvents)
 	}
 
 	context.WithSchemaID(schema.ID()).
 		WithResource(schema.StructToMap(rawResource))
 
-	if err := schema.env.HandleEvent(goext.PreCreate, context); err != nil {
-		return err
+	if triggerEvents {
+		if err := schema.env.HandleEvent(goext.PreCreate, context); err != nil {
+			return err
+		}
 	}
 
 	tx, err := schema.env.Database().Begin()
@@ -398,8 +409,10 @@ func (schema *Schema) CreateRaw(rawResource interface{}, context goext.Context) 
 	defer tx.Close()
 	contextSetTransaction(context, tx)
 
-	if err = schema.env.HandleEvent(goext.PreCreateTx, context); err != nil {
-		return err
+	if triggerEvents {
+		if err = schema.env.HandleEvent(goext.PreCreateTx, context); err != nil {
+			return err
+		}
 	}
 
 	if err = tx.Create(schema, context["resource"].(map[string]interface{})); err != nil {
@@ -410,8 +423,10 @@ func (schema *Schema) CreateRaw(rawResource interface{}, context goext.Context) 
 		return err
 	}
 
-	if err = schema.env.HandleEvent(goext.PostCreateTx, context); err != nil {
-		return err
+	if triggerEvents {
+		if err = schema.env.HandleEvent(goext.PostCreateTx, context); err != nil {
+			return err
+		}
 	}
 
 	if err = tx.Commit(); err != nil {
@@ -422,18 +437,23 @@ func (schema *Schema) CreateRaw(rawResource interface{}, context goext.Context) 
 		return err
 	}
 
+	if !triggerEvents {
+		return nil
+	}
 	return schema.env.HandleEvent(goext.PostCreate, context)
 }
 
-func (schema *Schema) createInTransaction(resource interface{}, context goext.Context, tx goext.ITransaction) error {
+func (schema *Schema) createInTransaction(resource interface{}, context goext.Context, tx goext.ITransaction, triggerEvents bool) error {
 	var err error
 
-	if err = schema.env.HandleEvent(goext.PreCreate, context); err != nil {
-		return err
-	}
+	if triggerEvents {
+		if err = schema.env.HandleEvent(goext.PreCreate, context); err != nil {
+			return err
+		}
 
-	if err = schema.env.HandleEvent(goext.PreCreateTx, context); err != nil {
-		return err
+		if err = schema.env.HandleEvent(goext.PreCreateTx, context); err != nil {
+			return err
+		}
 	}
 
 	if err = tx.Create(schema, context["resource"].(map[string]interface{})); err != nil {
@@ -444,6 +464,9 @@ func (schema *Schema) createInTransaction(resource interface{}, context goext.Co
 		return err
 	}
 
+	if !triggerEvents {
+		return nil
+	}
 	if err = schema.env.HandleEvent(goext.PostCreateTx, context); err != nil {
 		return err
 	}
@@ -453,6 +476,15 @@ func (schema *Schema) createInTransaction(resource interface{}, context goext.Co
 
 // UpdateRaw updates a resource and triggers handlers
 func (schema *Schema) UpdateRaw(rawResource interface{}, context goext.Context) error {
+	return schema.update(rawResource, context, true)
+}
+
+// DbUpdateRaw updates a raw resource without triggering events
+func (schema *Schema) DbUpdateRaw(rawResource interface{}, context goext.Context) error {
+	return schema.update(rawResource, context, false)
+}
+
+func (schema *Schema) update(rawResource interface{}, context goext.Context, triggerEvents bool) error {
 	if !isPointer(rawResource) {
 		return ErrNotPointer
 	}
@@ -476,8 +508,10 @@ func (schema *Schema) UpdateRaw(rawResource interface{}, context goext.Context) 
 		WithResourceID(resourceData.ID()).
 		WithSchemaID(schema.ID())
 
-	if err = schema.env.HandleEvent(goext.PreUpdate, contextCopy); err != nil {
-		return err
+	if triggerEvents {
+		if err = schema.env.HandleEvent(goext.PreUpdate, contextCopy); err != nil {
+			return err
+		}
 	}
 
 	tx, hasOpenTransaction := contextGetTransaction(contextCopy)
@@ -491,8 +525,10 @@ func (schema *Schema) UpdateRaw(rawResource interface{}, context goext.Context) 
 		contextSetTransaction(context, tx)
 	}
 
-	if err = schema.env.HandleEvent(goext.PreUpdateTx, contextCopy); err != nil {
-		return err
+	if triggerEvents {
+		if err = schema.env.HandleEvent(goext.PreUpdateTx, contextCopy); err != nil {
+			return err
+		}
 	}
 
 	if err = tx.Update(schema, contextCopy["resource"].(map[string]interface{})); err != nil {
@@ -503,8 +539,10 @@ func (schema *Schema) UpdateRaw(rawResource interface{}, context goext.Context) 
 		return err
 	}
 
-	if err = schema.env.HandleEvent(goext.PostUpdateTx, contextCopy); err != nil {
-		return err
+	if triggerEvents {
+		if err = schema.env.HandleEvent(goext.PostUpdateTx, contextCopy); err != nil {
+			return err
+		}
 	}
 
 	if !hasOpenTransaction {
@@ -513,56 +551,23 @@ func (schema *Schema) UpdateRaw(rawResource interface{}, context goext.Context) 
 		}
 	}
 
+	if !triggerEvents {
+		return nil
+	}
 	return schema.env.HandleEvent(goext.PostUpdate, contextCopy)
-}
-
-// DbUpdateRaw updates a raw resource without triggering events
-func (schema *Schema) DbUpdateRaw(rawResource interface{}, context goext.Context) error {
-	if !isPointer(rawResource) {
-		return ErrNotPointer
-	}
-	resourceData, err := schema.structToResource(rawResource)
-	if err != nil {
-		return err
-	}
-
-	if context == nil {
-		context = goext.MakeContext()
-	}
-
-	context.WithResource(schema.StructToMap(rawResource)).
-		WithResourceID(resourceData.ID()).
-		WithSchemaID(schema.ID())
-
-	tx, hasOpenTransaction := contextGetTransaction(context)
-	if !hasOpenTransaction {
-		if tx, err = schema.env.Database().Begin(); err != nil {
-			return err
-		}
-
-		defer tx.Close()
-		contextSetTransaction(context, tx)
-	}
-
-	if err = tx.Update(schema, context["resource"].(map[string]interface{})); err != nil {
-		return err
-	}
-
-	if err = schema.env.updateResourceFromContext(rawResource, context); err != nil {
-		return err
-	}
-
-	if !hasOpenTransaction {
-		if err = tx.Commit(); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // DeleteRaw deletes resource by ID
 func (schema *Schema) DeleteRaw(filter goext.Filter, context goext.Context) error {
+	return schema.delete(filter, context, true)
+}
+
+// DbDeleteRaw deletes resource by ID without triggering events
+func (schema *Schema) DbDeleteRaw(filter goext.Filter, context goext.Context) error {
+	return schema.delete(filter, context, false)
+}
+
+func (schema *Schema) delete(filter goext.Filter, context goext.Context, triggerEvents bool) error {
 	var tx goext.ITransaction
 	var err error
 	if context == nil {
@@ -598,24 +603,28 @@ func (schema *Schema) DeleteRaw(filter goext.Filter, context goext.Context) erro
 		contextTx = contextTx.WithResource(schema.StructToMap(resource.Interface())).
 			WithSchemaID(schema.ID())
 
-		if err = schema.env.HandleEvent(goext.PreDelete, contextTx); err != nil {
-			return err
-		}
+		if triggerEvents {
+			if err = schema.env.HandleEvent(goext.PreDelete, contextTx); err != nil {
+				return err
+			}
 
-		if err = schema.env.HandleEvent(goext.PreDeleteTx, contextTx); err != nil {
-			return err
+			if err = schema.env.HandleEvent(goext.PreDeleteTx, contextTx); err != nil {
+				return err
+			}
 		}
 
 		if err = tx.Delete(schema, resourceID); err != nil {
 			return err
 		}
 
-		if err = schema.env.HandleEvent(goext.PostDeleteTx, contextTx); err != nil {
-			return err
-		}
+		if triggerEvents {
+			if err = schema.env.HandleEvent(goext.PostDeleteTx, contextTx); err != nil {
+				return err
+			}
 
-		if err = schema.env.HandleEvent(goext.PostDelete, contextTx); err != nil {
-			return err
+			if err = schema.env.HandleEvent(goext.PostDelete, contextTx); err != nil {
+				return err
+			}
 		}
 	}
 

@@ -130,6 +130,9 @@ type ISchema interface {
 	// CreateRaw creates a raw resource, given by a pointer
 	CreateRaw(rawResource interface{}, context Context) error
 
+	// DbCreateRaw creates a raw resource, given by a pointer, no events are emitted
+	DbCreateRaw(rawResource interface{}, context Context) error
+
 	// UpdateRaw updates a raw resource, given by a pointer
 	UpdateRaw(rawResource interface{}, context Context) error
 
@@ -138,6 +141,9 @@ type ISchema interface {
 
 	// DeleteRaw deletes a raw resource, given by a pointer
 	DeleteRaw(filter Filter, context Context) error
+
+	// DbDeleteRaw deletes a raw resource, given by a pointer, no events are emitted
+	DbDeleteRaw(filter Filter, context Context) error
 
 	// RegisterEventHandler registers an event handler for a named event with given priority
 	RegisterEventHandler(event string, handler func(context Context, resource Resource, environment IEnvironment) error, priority int)
