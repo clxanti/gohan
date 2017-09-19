@@ -10,24 +10,23 @@ import (
 
 // Database in an implementation of IDatabase
 type Database struct {
-	env *Environment
-	db  gohan_db.DB
+	raw gohan_db.DB
 }
 
 // NewDatabase creates new database implementation
-func NewDatabase(env *Environment) goext.IDatabase {
-	return &Database{env: env, db: env.db}
+func NewDatabase(db gohan_db.DB) goext.IDatabase {
+	return &Database{raw: db}
 }
 
 // Begin starts a new transaction
 func (db *Database) Begin() (goext.ITransaction, error) {
-	t, _ := db.db.Begin()
+	t, _ := db.raw.Begin()
 	return &Transaction{t}, nil
 }
 
 // BeginTx starts a new transaction with options
 func (db *Database) BeginTx(ctx goext.Context, options *goext.TxOptions) (goext.ITransaction, error) {
 	opts := transaction.TxOptions{IsolationLevel: transaction.Type(options.IsolationLevel)}
-	t, _ := db.db.BeginTx(context.Background(), &opts)
+	t, _ := db.raw.BeginTx(context.Background(), &opts)
 	return &Transaction{t}, nil
 }

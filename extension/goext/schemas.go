@@ -98,8 +98,6 @@ const PriorityDefault = 0
 
 // ISchema is an interface representing a single schema in Gohan
 type ISchema interface {
-	IEnvironmentRef
-
 	// ID returns the identifier of this resource
 	ID() string
 
@@ -157,8 +155,6 @@ type ISchema interface {
 
 // ISchemas is an interface to schemas manager in Gohan
 type ISchemas interface {
-	IEnvironmentRef
-
 	List() []ISchema
 	Find(id string) ISchema
 }

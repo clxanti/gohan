@@ -32,11 +32,6 @@ type IEnvironment interface {
 	Reset()
 }
 
-// IEnvironmentRef indicates that an object holds a reference to a valid environment
-type IEnvironmentRef interface {
-	Environment() IEnvironment
-}
-
 // ResourceBase is the base class for all resources
 type ResourceBase struct {
 	Environment IEnvironment

@@ -59,12 +59,12 @@ func convertNodes(nodes []*gohan_sync.Node) []*goext.Node {
 
 // Sync is an implementation of ISync
 type Sync struct {
-	environment *Environment
+	raw gohan_sync.Sync
 }
 
 // Fetch fetches a path from sync
 func (sync *Sync) Fetch(path string) (*goext.Node, error) {
-	node, err := sync.environment.sync.Fetch(path)
+	node, err := sync.raw.Fetch(path)
 
 	if err != nil {
 		return nil, err
@@ -75,7 +75,7 @@ func (sync *Sync) Fetch(path string) (*goext.Node, error) {
 
 // Delete deletes a path from sync
 func (sync *Sync) Delete(path string, prefix bool) error {
-	return sync.environment.sync.Delete(path, prefix)
+	return sync.raw.Delete(path, prefix)
 }
 
 // Watch watches a single path in sync
@@ -86,7 +86,7 @@ func (sync *Sync) Watch(path string, timeout time.Duration, revision int64) ([]*
 	errorChan := make(chan error, 1)
 
 	go func() {
-		if err := sync.environment.sync.Watch(path, eventChan, stopChan, revision); err != nil {
+		if err := sync.raw.Watch(path, eventChan, stopChan, revision); err != nil {
 			errorChan <- err
 		}
 	}()
@@ -102,12 +102,7 @@ func (sync *Sync) Watch(path string, timeout time.Duration, revision int64) ([]*
 	}
 }
 
-// Environment returns the parent environment
-func (sync *Sync) Environment() goext.IEnvironment {
-	return sync.environment
-}
-
 // NewSync allocates Sync
-func NewSync(environment *Environment) goext.ISync {
-	return &Sync{environment: environment}
+func NewSync(sync gohan_sync.Sync) goext.ISync {
+	return &Sync{raw: sync}
 }

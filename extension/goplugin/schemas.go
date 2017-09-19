@@ -69,11 +69,6 @@ func (schemas *Schemas) Find(id string) goext.ISchema {
 	return NewSchema(schemas.env, sch)
 }
 
-// Environment returns the parent environment
-func (schemas *Schemas) Environment() goext.IEnvironment {
-	return schemas.env
-}
-
 // NewSchemas allocates a new Schemas
 func NewSchemas(env *Environment) goext.ISchemas {
 	return &Schemas{env: env}
@@ -648,11 +643,6 @@ func (schema *Schema) RegisterRawType(typeValue interface{}) {
 // RegisterType registers a runtime type for a resource
 func (schema *Schema) RegisterType(typeValue interface{}) {
 	schema.env.RegisterType(schema.raw.ID, typeValue)
-}
-
-// Environment returns the parent environment
-func (schema *Schema) Environment() goext.IEnvironment {
-	return schema.env
 }
 
 // NewSchema allocates a new Schema

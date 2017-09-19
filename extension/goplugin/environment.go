@@ -78,9 +78,7 @@ type Environment struct {
 	extDatabase goext.IDatabase
 
 	name  string
-	db    gohan_db.DB
 	ident middleware.IdentityService
-	sync  gohan_sync.Sync
 
 	traceID string
 
@@ -99,9 +97,7 @@ func NewEnvironment(name string, beforeStartHook func(env *Environment) error, a
 		afterStopHook:   afterStopHook,
 
 		name:  name,
-		db:    nil,
 		ident: nil,
-		sync:  nil,
 
 		rawTypes: make(map[string]reflect.Type),
 		types:    make(map[string]reflect.Type),
@@ -150,8 +146,7 @@ func (env *Environment) Http() goext.IHttp {
 }
 
 func (env *Environment) SetDatabase(db gohan_db.DB) {
-	env.db = db
-	env.bindDatabase()
+	env.bindDatabase(db)
 }
 
 func (env *Environment) SetIdentityService(ident middleware.IdentityService) {
@@ -159,8 +154,7 @@ func (env *Environment) SetIdentityService(ident middleware.IdentityService) {
 }
 
 func (env *Environment) SetSync(sync gohan_sync.Sync) {
-	env.sync = sync
-	env.bindSync()
+	env.bindSync(sync)
 }
 
 func (env *Environment) bindCore() {
@@ -175,12 +169,12 @@ func (env *Environment) bindSchemas() {
 	env.extSchemas = NewSchemas(env)
 }
 
-func (env *Environment) bindSync() {
-	env.extSync = NewSync(env)
+func (env *Environment) bindSync(sync gohan_sync.Sync) {
+	env.extSync = NewSync(sync)
 }
 
-func (env *Environment) bindDatabase() {
-	env.extDatabase = NewDatabase(env)
+func (env *Environment) bindDatabase(db gohan_db.DB) {
+	env.extDatabase = NewDatabase(db)
 }
 
 // Start starts already loaded environment
@@ -689,9 +683,7 @@ func (env *Environment) Clone() extension.Environment {
 		extDatabase: nil,
 
 		name:  env.name,
-		db:    env.db,
 		ident: env.ident,
-		sync:  env.sync,
 
 		traceID: uuid.NewV4().String(),
 
