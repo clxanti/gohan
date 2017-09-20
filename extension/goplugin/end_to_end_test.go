@@ -35,7 +35,7 @@ import (
 
 var _ = Describe("Environment", func() {
 	const (
-		conn         = "./test.db"
+		conn         = "test.db"
 		dbType       = "sqlite3"
 		baseURL      = "http://localhost:19090"
 		adminTokenID = "admin_token"
@@ -78,22 +78,23 @@ var _ = Describe("Environment", func() {
 		return nil
 	}
 
-	BeforeSuite(func() {
+	BeforeEach(func() {
 		var err error
 		testDB, err = db.ConnectDB(dbType, conn, db.DefaultMaxOpenConn, options.Default())
 		Expect(err).ToNot(HaveOccurred(), "Failed to connect database.")
-		err = startTestServer("./test_data/test_config.yaml")
+		err = startTestServer("test_data/test_config.yaml")
 		Expect(err).ToNot(HaveOccurred(), "Failed to start test server.")
 	})
 
-	AfterSuite(func() {
+	AfterEach(func() {
 		schema.ClearManager()
 		os.Remove(conn)
 	})
 
 	Context("Requests", func() {
 		It("invokes registered Golang handlers", func() {
-			res := testURL("POST", baseURL+"/v0.1/tests/echo", adminTokenID, map[string]interface{}{"test": "success"}, http.StatusOK)
+			input := map[string]interface{}{"test": "success"}
+			res := testURL("POST", baseURL+"/v0.1/tests/echo", adminTokenID, map[string]interface{}{"input": input, "id": "test_id"}, http.StatusOK)
 			Expect(res.(map[string]interface{})).To(HaveKeyWithValue("test", "success"))
 		})
 	})

@@ -286,6 +286,10 @@ func (env *Environment) LoadExtensionsForPath(extensions []*schema.Extension, ti
 			}
 		}
 	}
+	if err := env.Start(); err != nil {
+		log.Error("failed to start environment: %s", err)
+		return err
+	}
 	return nil
 }
 
@@ -573,7 +577,6 @@ func (env *Environment) resourceFromContext(sch Schema, context map[string]inter
 
 		}
 	}
-
 	return resource.Interface(), nil
 }
 
