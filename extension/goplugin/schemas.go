@@ -70,8 +70,18 @@ func (schemas *Schemas) Find(id string) goext.ISchema {
 }
 
 // NewSchemas allocates a new Schemas
-func NewSchemas(env *Environment) goext.ISchemas {
+func NewSchemas(env *Environment) *Schemas {
 	return &Schemas{env: env}
+}
+
+// Clone allocates a clone of Schemas; object may be nil
+func (schemas *Schemas) Clone() *Schemas {
+	if schemas == nil {
+		return nil
+	}
+	return &Schemas{
+		env: schemas.env,
+	}
 }
 
 // Schema is an implementation of ISchema

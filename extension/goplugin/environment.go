@@ -65,17 +65,21 @@ type SchemaPrioritizedSchemaHandlers map[string]PrioritizedSchemaHandlers
 // EventSchemaPrioritizedSchemaHandlers is a per-event per-schema prioritized list of schema handlers
 type EventSchemaPrioritizedSchemaHandlers map[string]SchemaPrioritizedSchemaHandlers
 
+func newTraceID() string {
+	return uuid.NewV4().String()
+}
+
 // Environment golang based environment for gohan extensions
 type Environment struct {
 	initFns         map[string]func(goext.IEnvironment) error
 	beforeStartHook func(env *Environment) error
 	afterStopHook   func(env *Environment)
 
-	extCore     goext.ICore
-	extLogger   goext.ILogger
-	extSchemas  goext.ISchemas
-	extSync     goext.ISync
-	extDatabase goext.IDatabase
+	coreImpl     *Core
+	loggerImpl   *Logger
+	schemasImpl  *Schemas
+	syncImpl     *Sync
+	databaseImpl *Database
 
 	name  string
 	ident middleware.IdentityService
@@ -117,27 +121,27 @@ func (env *Environment) SchemaHandlers() EventSchemaPrioritizedSchemaHandlers {
 
 // Core returns an implementation to Core interface
 func (env *Environment) Core() goext.ICore {
-	return env.extCore
+	return env.coreImpl
 }
 
 // Logger returns an implementation to Logger interface
 func (env *Environment) Logger() goext.ILogger {
-	return env.extLogger
+	return env.loggerImpl
 }
 
 // Schemas returns an implementation to Schemas interface
 func (env *Environment) Schemas() goext.ISchemas {
-	return env.extSchemas
+	return env.schemasImpl
 }
 
 // Sync returns an implementation to Sync interface
 func (env *Environment) Sync() goext.ISync {
-	return env.extSync
+	return env.syncImpl
 }
 
 // Database returns an implementation to IDatabase interface
 func (env *Environment) Database() goext.IDatabase {
-	return env.extDatabase
+	return env.databaseImpl
 }
 
 // Http returns an implementation to IHttp interface
@@ -158,23 +162,23 @@ func (env *Environment) SetSync(sync gohan_sync.Sync) {
 }
 
 func (env *Environment) bindCore() {
-	env.extCore = NewCore(env)
+	env.coreImpl = NewCore(env)
 }
 
 func (env *Environment) bindLogger() {
-	env.extLogger = NewLogger(env)
+	env.loggerImpl = NewLogger(env)
 }
 
 func (env *Environment) bindSchemas() {
-	env.extSchemas = NewSchemas(env)
+	env.schemasImpl = NewSchemas(env)
 }
 
 func (env *Environment) bindSync(sync gohan_sync.Sync) {
-	env.extSync = NewSync(sync)
+	env.syncImpl = NewSync(sync)
 }
 
 func (env *Environment) bindDatabase(db gohan_db.DB) {
-	env.extDatabase = NewDatabase(db)
+	env.databaseImpl = NewDatabase(db)
 }
 
 // Start starts already loaded environment
@@ -206,7 +210,7 @@ func (env *Environment) Start() error {
 	}
 
 	// generate trace ID
-	env.traceID = uuid.NewV4().String()
+	env.traceID = newTraceID()
 
 	// init extensions
 	log.Debug("Start go extension: %s", env.name)
@@ -638,11 +642,11 @@ func (env *Environment) Stop() {
 	log.Info("Stop environment")
 
 	// reset locals
-	env.extCore = nil
-	env.extLogger = nil
-	env.extSchemas = nil
-	env.extSync = nil
-	env.extDatabase = nil
+	env.coreImpl = nil
+	env.loggerImpl = nil
+	env.schemasImpl = nil
+	env.syncImpl = nil
+	env.databaseImpl = nil
 
 	env.traceID = ""
 
@@ -676,22 +680,22 @@ func (env *Environment) Clone() extension.Environment {
 		beforeStartHook: env.beforeStartHook,
 		afterStopHook:   env.afterStopHook,
 
-		extCore:     nil,
-		extLogger:   nil,
-		extSchemas:  nil,
-		extSync:     nil,
-		extDatabase: nil,
+		coreImpl:     env.coreImpl.Clone(),
+		loggerImpl:   env.loggerImpl.Clone(),
+		schemasImpl:  env.schemasImpl.Clone(),
+		syncImpl:     env.syncImpl.Clone(),
+		databaseImpl: env.databaseImpl.Clone(),
 
 		name:  env.name,
 		ident: env.ident,
 
-		traceID: uuid.NewV4().String(),
+		traceID: newTraceID(),
 
 		handlers:       deepcopy.Copy(env.handlers).(EventPrioritizedHandlers),
 		schemaHandlers: deepcopy.Copy(env.schemaHandlers).(EventSchemaPrioritizedSchemaHandlers),
 
-		rawTypes: env.rawTypes,
-		types:    env.types,
+		rawTypes: deepcopy.Copy(env.rawTypes).(map[string]reflect.Type),
+		types:    deepcopy.Copy(env.types).(map[string]reflect.Type),
 	}
 	return clone
 }

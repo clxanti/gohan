@@ -14,8 +14,18 @@ type Database struct {
 }
 
 // NewDatabase creates new database implementation
-func NewDatabase(db gohan_db.DB) goext.IDatabase {
+func NewDatabase(db gohan_db.DB) *Database {
 	return &Database{raw: db}
+}
+
+// Clone allocates a clone of Database; object may be nil
+func (db *Database) Clone() *Database {
+	if db == nil {
+		return nil
+	}
+	return &Database{
+		raw: db.raw,
+	}
 }
 
 // Begin starts a new transaction

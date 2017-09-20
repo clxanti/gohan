@@ -16,9 +16,10 @@
 package goplugin
 
 import (
+	"fmt"
+
 	"github.com/cloudwan/gohan/extension/goext"
 	gohan_log "github.com/cloudwan/gohan/log"
-	"fmt"
 )
 
 const logModule = "[GOEXT]"
@@ -133,6 +134,16 @@ func (logger *Logger) Debugf(format string, args ...interface{}) {
 }
 
 // NewLogger allocates Logger
-func NewLogger(env *Environment) goext.ILogger {
+func NewLogger(env *Environment) *Logger {
 	return &Logger{env: env}
+}
+
+// Clone allocates a clone of Logger; object may be nil
+func (logger *Logger) Clone() *Logger {
+	if logger == nil {
+		return nil
+	}
+	return &Logger{
+		env: logger.env,
+	}
 }

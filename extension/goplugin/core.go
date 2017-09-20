@@ -69,6 +69,16 @@ func (core *Core) Config(key string, defaultValue interface{}) interface{} {
 }
 
 // NewCore allocates Core
-func NewCore(env *Environment) goext.ICore {
+func NewCore(env *Environment) *Core {
 	return &Core{env: env}
+}
+
+// Clone allocates a clone of Core; object may be nil
+func (core *Core) Clone() *Core {
+	if core == nil {
+		return nil
+	}
+	return &Core{
+		env: core.env,
+	}
 }

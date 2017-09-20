@@ -103,6 +103,16 @@ func (sync *Sync) Watch(path string, timeout time.Duration, revision int64) ([]*
 }
 
 // NewSync allocates Sync
-func NewSync(sync gohan_sync.Sync) goext.ISync {
+func NewSync(sync gohan_sync.Sync) *Sync {
 	return &Sync{raw: sync}
+}
+
+// Clone allocates a clone of Sync; object may be nil
+func (sync *Sync) Clone() *Sync {
+	if sync == nil {
+		return nil
+	}
+	return &Sync{
+		raw: sync.raw,
+	}
 }
