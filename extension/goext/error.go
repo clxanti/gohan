@@ -53,3 +53,4 @@ var (
 	// ErrorNotImplemented indicates not implemented error
 	ErrorNotImplemented = ErrorCode(501)
 )
+

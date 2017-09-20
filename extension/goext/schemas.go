@@ -15,6 +15,8 @@
 
 package goext
 
+import "errors"
+
 // LockPolicy indicates lock policy
 type LockPolicy int
 
@@ -95,6 +97,8 @@ func (ctx Context) Clone() Context {
 
 // PriorityDefault is a default handler priority
 const PriorityDefault = 0
+
+var ErrResourceNotFound = errors.New("resource not found")
 
 // ISchema is an interface representing a single schema in Gohan
 type ISchema interface {

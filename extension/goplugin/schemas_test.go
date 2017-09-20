@@ -135,6 +135,50 @@ var _ = Describe("Transaction", func() {
 			Expect(returnedTest.Description).To(Equal("other-description"))
 		})
 
+		Context("Resource not found", func() {
+			const unknownId = "unknown-id"
+
+			It("Should return error in Fetch", func() {
+				_, err := testSchema.Fetch(unknownId, context)
+				Expect(err).To(Equal(goext.ErrResourceNotFound))
+			})
+
+			It("Should return error in FetchRaw", func() {
+				_, err := testSchema.FetchRaw(unknownId, context)
+				Expect(err).To(Equal(goext.ErrResourceNotFound))
+			})
+
+			It("Should return error in LockFetch", func() {
+				_, err := testSchema.LockFetch(unknownId, context, goext.SkipRelatedResources)
+				Expect(err).To(Equal(goext.ErrResourceNotFound))
+			})
+
+			It("Should return error in LockFetchRaw", func() {
+				_, err := testSchema.LockFetchRaw(unknownId, context, goext.SkipRelatedResources)
+				Expect(err).To(Equal(goext.ErrResourceNotFound))
+			})
+
+			It("Should not return error in List", func() {
+				_, err := testSchema.List(goext.Filter{"id": unknownId}, nil, context)
+				Expect(err).To(Succeed())
+			})
+
+			It("Should not return error in ListRaw", func() {
+				_, err := testSchema.ListRaw(goext.Filter{"id": unknownId}, nil, context)
+				Expect(err).To(Succeed())
+			})
+
+			It("Should not return error in LockList", func() {
+				_, err := testSchema.LockList(goext.Filter{"id": unknownId}, nil, context, goext.SkipRelatedResources)
+				Expect(err).To(Succeed())
+			})
+
+			It("Should not return error in LockListRaw", func() {
+				_, err := testSchema.LockListRaw(goext.Filter{"id": unknownId}, nil, context, goext.SkipRelatedResources)
+				Expect(err).To(Succeed())
+			})
+		})
+
 	})
 
 	Context("Locks", func() {

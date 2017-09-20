@@ -312,7 +312,11 @@ func (schema *Schema) fetchImpl(id string, context goext.Context, fetch fetchFun
 	data, err := fetch(tx, filter)
 
 	if err != nil {
-		return nil, err
+		if err == transaction.ErrResourceNotFound {
+			return nil, goext.ErrResourceNotFound
+		} else {
+			return nil, err
+		}
 	}
 	resourceType, ok := schema.env.rawTypes[schema.raw.ID]
 	if !ok {
