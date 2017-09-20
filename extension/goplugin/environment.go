@@ -286,6 +286,10 @@ func (env *Environment) LoadExtensionsForPath(extensions []*schema.Extension, ti
 			}
 		}
 	}
+	if err := env.Start(); err != nil {
+		log.Error("failed to start environment: %s", err)
+		return err
+	}
 	return nil
 }
 
@@ -299,7 +303,9 @@ func (env *Environment) dispatchSchemaEvent(prioritizedSchemaHandlers Prioritize
 				if err := schemaEventHandler(context, resource, env); err != nil {
 					return err
 				}
-				context["resource"] = sch.StructToMap(resource)
+				if resource != nil {
+					context["resource"] = sch.StructToMap(resource)
+				}
 			}
 		}
 	} else {
@@ -522,55 +528,56 @@ func (env *Environment) resourceToMap(resource interface{}) interface{} {
 }
 
 func (env *Environment) resourceFromContext(sch Schema, context map[string]interface{}) (res goext.Resource, err error) {
-	rawSchema := sch.raw
+	rawSch := sch.raw
+	rawType, ok := env.rawTypes[rawSch.ID]
 
-	resourceType, ok := env.rawTypes[rawSchema.ID]
 	if !ok {
-		return nil, fmt.Errorf("No type registered for title: %s", rawSchema.ID)
+		return nil, fmt.Errorf("no raw type registered for schema: %s", rawSch.ID)
 	}
-
-	resource := reflect.New(resourceType)
 
 	resourceData, ok := context["resource"]
 
-	if ok {
-		data := resourceData.(map[string]interface{})
-		for i := 0; i < resourceType.NumField(); i++ {
-			field := resource.Elem().Field(i)
-			fieldType := resourceType.Field(i)
-			propertyName := fieldType.Tag.Get("db")
-			if propertyName == "" {
-				return nil, fmt.Errorf("Missing tag 'db' for resource %s field %s", resourceType.Name(), fieldType.Name)
-			}
-			property, err := rawSchema.GetPropertyByID(propertyName)
+	if !ok {
+		return nil, nil
+	}
+
+	resource := reflect.New(rawType)
+	data := resourceData.(map[string]interface{})
+
+	for i := 0; i < rawType.NumField(); i++ {
+		field := resource.Elem().Field(i)
+		fieldType := rawType.Field(i)
+		propertyName := fieldType.Tag.Get("db")
+		if propertyName == "" {
+			return nil, fmt.Errorf("missing tag 'db' for resource %s field %s", rawType.Name(), fieldType.Name)
+		}
+		property, err := rawSch.GetPropertyByID(propertyName)
+		if err != nil {
+			return nil, err
+		}
+		kind := fieldType.Type.Kind()
+		if kind == reflect.Struct || kind == reflect.Ptr || kind == reflect.Slice {
+			mapJSON, err := json.Marshal(data[property.ID])
 			if err != nil {
 				return nil, err
 			}
-			kind := fieldType.Type.Kind()
-			if kind == reflect.Struct || kind == reflect.Ptr || kind == reflect.Slice {
-				mapJSON, err := json.Marshal(data[property.ID])
-				if err != nil {
-					return nil, err
-				}
-				newField := reflect.New(field.Type())
-				fieldJSON := string(mapJSON)
-				fieldInterface := newField.Interface()
-				err = json.Unmarshal([]byte(fieldJSON), &fieldInterface)
-				if err != nil {
-					return nil, err
-				}
-				field.Set(newField.Elem())
-			} else {
-				value := reflect.ValueOf(data[property.ID])
-				if value.IsValid() {
-					if value.Type() != field.Type() && field.Kind() == reflect.Int && value.Kind() == reflect.Float64 { // reflect treats number(N, 0) as float
-						field.SetInt(int64(value.Float()))
-					} else {
-						field.Set(value)
-					}
+			newField := reflect.New(field.Type())
+			fieldJSON := string(mapJSON)
+			fieldInterface := newField.Interface()
+			err = json.Unmarshal([]byte(fieldJSON), &fieldInterface)
+			if err != nil {
+				return nil, err
+			}
+			field.Set(newField.Elem())
+		} else {
+			value := reflect.ValueOf(data[property.ID])
+			if value.IsValid() {
+				if value.Type() != field.Type() && field.Kind() == reflect.Int && value.Kind() == reflect.Float64 { // reflect treats number(N, 0) as float
+					field.SetInt(int64(value.Float()))
+				} else {
+					field.Set(value)
 				}
 			}
-
 		}
 	}
 

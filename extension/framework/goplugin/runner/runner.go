@@ -206,11 +206,6 @@ func (testRunner *TestRunner) runSingle(t ginkgo.GinkgoTestingT, reporter *Repor
 		return fmt.Errorf("failed to register environment: %s", err)
 	}
 
-	// load extensions
-	if err := env.LoadExtensionsForPath(manager.Extensions, manager.TimeLimit, manager.TimeLimits, ""); err != nil {
-		return fmt.Errorf("failed to load schemas extensions: %s", err)
-	}
-
 	// load binaries
 	for _, binary := range binaries {
 		if err := env.Load(path + "/" + binary); err != nil {
@@ -218,10 +213,9 @@ func (testRunner *TestRunner) runSingle(t ginkgo.GinkgoTestingT, reporter *Repor
 		}
 	}
 
-	// start env
-	if err = env.Start(); err != nil {
-		log.Error("failed to start environment: %s", err)
-		return err
+	// load extensions
+	if err := env.LoadExtensionsForPath(manager.Extensions, manager.TimeLimit, manager.TimeLimits, ""); err != nil {
+		return fmt.Errorf("failed to load schemas extensions: %s", err)
 	}
 
 	// get test

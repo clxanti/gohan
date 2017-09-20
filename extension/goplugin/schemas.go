@@ -99,13 +99,11 @@ func (schema *Schema) StructToMap(resource interface{}) map[string]interface{} {
 	fieldsMap := map[string]interface{}{}
 
 	mapper := reflectx.NewMapper("db")
-
 	structMap := mapper.TypeMap(reflect.TypeOf(resource))
 	resourceValue := reflect.ValueOf(resource)
 
 	for _, property := range schema.raw.Properties {
 		field := property.ID
-
 		fi, ok := structMap.Names[property.ID]
 		if !ok {
 			panic(fmt.Sprintf("property %s not found in %+v", property.ID, resource))

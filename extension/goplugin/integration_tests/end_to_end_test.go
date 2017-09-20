@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package goplugin_test
+package goplugin_integration_test
 
 import (
 	"bytes"
@@ -35,7 +35,7 @@ import (
 
 var _ = Describe("Environment", func() {
 	const (
-		conn         = "./test.db"
+		conn         = "test.db"
 		dbType       = "sqlite3"
 		baseURL      = "http://localhost:19090"
 		adminTokenID = "admin_token"
@@ -78,15 +78,15 @@ var _ = Describe("Environment", func() {
 		return nil
 	}
 
-	BeforeSuite(func() {
+	BeforeEach(func() {
 		var err error
 		testDB, err = db.ConnectDB(dbType, conn, db.DefaultMaxOpenConn, options.Default())
 		Expect(err).ToNot(HaveOccurred(), "Failed to connect database.")
-		err = startTestServer("./test_data/test_config.yaml")
+		err = startTestServer("../test_data/test_config.yaml")
 		Expect(err).ToNot(HaveOccurred(), "Failed to start test server.")
 	})
 
-	AfterSuite(func() {
+	AfterEach(func() {
 		schema.ClearManager()
 		os.Remove(conn)
 	})
