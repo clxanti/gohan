@@ -701,8 +701,14 @@ func (env *Environment) Clone() extension.Environment {
 		handlers:       deepcopy.Copy(env.handlers).(EventPrioritizedHandlers),
 		schemaHandlers: deepcopy.Copy(env.schemaHandlers).(EventSchemaPrioritizedSchemaHandlers),
 
-		rawTypes: deepcopy.Copy(env.rawTypes).(map[string]reflect.Type),
-		types:    deepcopy.Copy(env.types).(map[string]reflect.Type),
+		rawTypes: make(map[string]reflect.Type),
+		types:    make(map[string]reflect.Type),
+	}
+	for k, v := range env.rawTypes {
+		clone.rawTypes[k] = v
+	}
+	for k, v := range env.types {
+		clone.types[k] = v
 	}
 	return clone
 }
