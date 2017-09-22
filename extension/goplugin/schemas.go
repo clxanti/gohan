@@ -182,7 +182,7 @@ func (schema *Schema) listImpl(context goext.Context, list listFunc) ([]interfac
 		context = goext.MakeContext()
 	}
 
-	tx, hasOpenTransaction := contextGetTransaction(context)
+	tx, hasOpenTransaction := contextGetTransaction(schema.env.Database(), context)
 	if !hasOpenTransaction {
 		var err error
 		tx, err = schema.env.Database().Begin()
@@ -294,7 +294,7 @@ func (schema *Schema) fetchImpl(id string, context goext.Context, fetch fetchFun
 	if context == nil {
 		context = goext.MakeContext()
 	}
-	tx, hasOpenTransaction := contextGetTransaction(context)
+	tx, hasOpenTransaction := contextGetTransaction(schema.env.Database(), context)
 	if !hasOpenTransaction {
 		var err error
 		tx, err = schema.env.Database().Begin()
@@ -391,7 +391,7 @@ func (schema *Schema) create(rawResource interface{}, context goext.Context, tri
 	if context == nil {
 		context = goext.MakeContext()
 	}
-	tx, hasOpenTransaction := contextGetTransaction(context)
+	tx, hasOpenTransaction := contextGetTransaction(schema.env.Database(), context)
 	if hasOpenTransaction {
 		contextCopy := goext.MakeContext().
 			WithSchemaID(schema.ID()).
@@ -521,7 +521,7 @@ func (schema *Schema) update(rawResource interface{}, context goext.Context, tri
 		}
 	}
 
-	tx, hasOpenTransaction := contextGetTransaction(contextCopy)
+	tx, hasOpenTransaction := contextGetTransaction(schema.env.Database(), contextCopy)
 	if !hasOpenTransaction {
 		if tx, err = schema.env.Database().Begin(); err != nil {
 			return err
@@ -580,7 +580,7 @@ func (schema *Schema) delete(filter goext.Filter, context goext.Context, trigger
 	if context == nil {
 		context = goext.MakeContext()
 	}
-	tx, hasOpenTransaction := contextGetTransaction(context)
+	tx, hasOpenTransaction := contextGetTransaction(schema.env.Database(), context)
 	if !hasOpenTransaction {
 		if tx, err = schema.env.Database().Begin(); err != nil {
 			return err
@@ -667,18 +667,11 @@ func contextSetTransaction(ctx goext.Context, tx goext.ITransaction) goext.Conte
 	return ctx
 }
 
-func contextGetTransaction(ctx goext.Context) (goext.ITransaction, bool) {
-	ctxTx := ctx["transaction"]
-	if ctxTx == nil {
+func contextGetTransaction(db goext.IDatabase, ctx goext.Context) (goext.ITransaction, bool) {
+	tx := ctx["transaction"]
+	if tx == nil {
 		return nil, false
 	}
 
-	switch tx := ctxTx.(type) {
-	case goext.ITransaction:
-		return tx, true
-	case transaction.Transaction:
-		return &Transaction{tx}, true
-	default:
-		panic(fmt.Sprintf("Unknown transaction type in context: %+v", ctxTx))
-	}
+	return db.CovertToTransaction(tx), true
 }

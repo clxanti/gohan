@@ -19,8 +19,9 @@ import (
 	"strings"
 	"time"
 
-	gohan_logger "github.com/cloudwan/gohan/log"
 	"fmt"
+
+	gohan_logger "github.com/cloudwan/gohan/log"
 )
 
 // DbOptions represent database options
@@ -35,6 +36,8 @@ type IDatabase interface {
 	BeginTx(context Context, options *TxOptions) (ITransaction, error)
 
 	Options() DbOptions
+
+	CovertToTransaction(tx interface{}) ITransaction
 }
 
 var log = gohan_logger.NewLogger()
@@ -121,7 +124,7 @@ func within(db IDatabase, context Context, txBegin func() (ITransaction, error),
 	rawTx, joinable := context["transaction"]
 
 	if joinable {
-		return withinJoinable(rawTx.(ITransaction), fn)
+		return withinJoinable(db.CovertToTransaction(rawTx), fn)
 	}
 
 	return withinDetached(db, context, txBegin, fn)

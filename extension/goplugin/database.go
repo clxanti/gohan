@@ -18,6 +18,8 @@ package goplugin
 import (
 	"context"
 
+	"fmt"
+
 	gohan_db "github.com/cloudwan/gohan/db"
 	"github.com/cloudwan/gohan/db/transaction"
 	"github.com/cloudwan/gohan/extension/goext"
@@ -67,4 +69,15 @@ func (db *Database) BeginTx(ctx goext.Context, options *goext.TxOptions) (goext.
 // Options return database options rom configuration file
 func (db *Database) Options() goext.DbOptions {
 	return db.opts
+}
+
+func (db *Database) CovertToTransaction(tx interface{}) goext.ITransaction {
+	switch concreteTx := tx.(type) {
+	case goext.ITransaction:
+		return concreteTx
+	case transaction.Transaction:
+		return &Transaction{concreteTx}
+	default:
+		panic(fmt.Sprintf("Unknown transaction type in context: %+v", tx))
+	}
 }
