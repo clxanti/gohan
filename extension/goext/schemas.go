@@ -117,20 +117,20 @@ type ISchema interface {
 	// ID returns the identifier of this resource
 	ID() string
 
-	// List returns a list of pointers to resources derived from BaseResource
-	List(filter Filter, paginator *Paginator, context Context) ([]interface{}, error)
+	// List returns a list of pointers to resources derived from IBaseResource
+	List(filter Filter, paginator *Paginator, context Context) ([]IResourceBase, error)
 
 	// ListRaw returns a list of pointers to raw resources, containing db annotations
 	ListRaw(filter Filter, paginator *Paginator, context Context) ([]interface{}, error)
 
-	// LockList returns a list of pointers to locked resources derived from BaseResource
-	LockList(filter Filter, paginator *Paginator, context Context, lockPolicy LockPolicy) ([]interface{}, error)
+	// LockList returns a list of pointers to locked resources derived from IBaseResource
+	LockList(filter Filter, paginator *Paginator, context Context, lockPolicy LockPolicy) ([]IResourceBase, error)
 
 	// LockListRaw returns a list of pointers to locked raw resources, containing db annotations
 	LockListRaw(filter Filter, paginator *Paginator, context Context, lockPolicy LockPolicy) ([]interface{}, error)
 
-	// Fetch returns a pointer to resource derived from BaseResource
-	Fetch(id string, context Context) (interface{}, error)
+	// Fetch returns a pointer to resource derived from IBaseResource
+	Fetch(id string, context Context) (IResourceBase, error)
 
 	// FetchRaw returns a pointer to raw resource, containing db annotations
 	FetchRaw(id string, context Context) (interface{}, error)
@@ -138,8 +138,8 @@ type ISchema interface {
 	// StateFetchRaw returns a resource state
 	StateFetchRaw(id string, requestContext Context) (ResourceState, error)
 
-	// LockFetch returns a pointer to locked resource derived from BaseResource, containing db annotations
-	LockFetch(id string, context Context, lockPolicy LockPolicy) (interface{}, error)
+	// LockFetch returns a pointer to locked resource derived from IBaseResource, containing db annotations
+	LockFetch(id string, context Context, lockPolicy LockPolicy) (IResourceBase, error)
 
 	// LockFetchRaw returns a pointer to locked raw resource, containing db annotations
 	LockFetchRaw(id string, context Context, lockPolicy LockPolicy) (interface{}, error)
