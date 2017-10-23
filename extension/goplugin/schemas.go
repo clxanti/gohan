@@ -142,14 +142,14 @@ func (schema *Schema) structToResource(resource interface{}) (*gohan_schema.Reso
 
 // ListRaw lists schema raw resources
 func (schema *Schema) ListRaw(filter goext.Filter, paginator *goext.Paginator, requestContext goext.Context) ([]interface{}, error) {
-	return schema.listImpl(requestContext, func(ctx context.Context, tx goext.ITransaction) ([]map[string]interface{}, uint64, error) {
+	return schema.listRawImpl(requestContext, func(ctx context.Context, tx goext.ITransaction) ([]map[string]interface{}, uint64, error) {
 		return tx.List(ctx, schema, filter, nil, paginator)
 	})
 }
 
 type listFunc func(ctx context.Context, tx goext.ITransaction) ([]map[string]interface{}, uint64, error)
 
-func (schema *Schema) listImpl(requestContext goext.Context, list listFunc) ([]interface{}, error) {
+func (schema *Schema) listRawImpl(requestContext goext.Context, list listFunc) ([]interface{}, error) {
 	tx := mustGetOpenTransactionFromContext(requestContext)
 
 	data, _, err := list(goext.GetContext(requestContext), tx)
@@ -172,14 +172,14 @@ func (schema *Schema) listImpl(requestContext goext.Context, list listFunc) ([]i
 
 // LockListRaw locks and returns raw resources
 func (schema *Schema) LockListRaw(filter goext.Filter, paginator *goext.Paginator, requestContext goext.Context, policy goext.LockPolicy) ([]interface{}, error) {
-	return schema.listImpl(requestContext, func(ctx context.Context, tx goext.ITransaction) ([]map[string]interface{}, uint64, error) {
+	return schema.listRawImpl(requestContext, func(ctx context.Context, tx goext.ITransaction) ([]map[string]interface{}, uint64, error) {
 		return tx.LockList(ctx, schema, filter, nil, paginator, policy)
 	})
 }
 
 // List returns list of resources.
 // Schema, Logger, Environment and pointer to raw resource are required fields in the resource
-func (schema *Schema) List(filter goext.Filter, paginator *goext.Paginator, context goext.Context) ([]interface{}, error) {
+func (schema *Schema) List(filter goext.Filter, paginator *goext.Paginator, context goext.Context) ([]goext.IResourceBase, error) {
 	fetched, err := schema.ListRaw(filter, paginator, context)
 	if err != nil {
 		return nil, err
@@ -189,7 +189,7 @@ func (schema *Schema) List(filter goext.Filter, paginator *goext.Paginator, cont
 
 // LockList locks and returns list of resources.
 // Schema, Logger, Environment and pointer to raw resource are required fields in the resource
-func (schema *Schema) LockList(filter goext.Filter, paginator *goext.Paginator, context goext.Context, policy goext.LockPolicy) ([]interface{}, error) {
+func (schema *Schema) LockList(filter goext.Filter, paginator *goext.Paginator, context goext.Context, policy goext.LockPolicy) ([]goext.IResourceBase, error) {
 	fetched, err := schema.LockListRaw(filter, paginator, context, policy)
 	if err != nil {
 		return nil, err
@@ -197,9 +197,9 @@ func (schema *Schema) LockList(filter goext.Filter, paginator *goext.Paginator, 
 	return schema.rawListToResourceList(fetched)
 }
 
-func (schema *Schema) rawListToResourceList(rawList []interface{}) ([]interface{}, error) {
+func (schema *Schema) rawListToResourceList(rawList []interface{}) ([]goext.IResourceBase, error) {
 	if len(rawList) == 0 {
-		return rawList, nil
+		return []goext.IResourceBase{}, nil
 	}
 	xRaw := reflect.ValueOf(rawList)
 	resourceType, ok := schema.env.getType(schema.ID())
@@ -213,7 +213,7 @@ func (schema *Schema) rawListToResourceList(rawList []interface{}) ([]interface{
 	x = x.Elem()
 
 	var err error
-	res := make([]interface{}, xRaw.Len(), xRaw.Len())
+	res := make([]goext.IResourceBase, xRaw.Len(), xRaw.Len())
 	for i := 0; i < xRaw.Len(); i++ {
 		rawResource := xRaw.Index(i)
 		if res[i], err = schema.rawToResource(rawResource.Elem()); err != nil {
@@ -223,7 +223,7 @@ func (schema *Schema) rawListToResourceList(rawList []interface{}) ([]interface{
 	return res, nil
 }
 
-func (schema *Schema) rawToResource(xRaw reflect.Value) (interface{}, error) {
+func (schema *Schema) rawToResource(xRaw reflect.Value) (goext.IResourceBase, error) {
 	xRaw = xRaw.Elem()
 	resourceType, ok := schema.env.getType(schema.ID())
 	if !ok {
@@ -234,19 +234,19 @@ func (schema *Schema) rawToResource(xRaw reflect.Value) (interface{}, error) {
 	setValue(resource.FieldByName(xRaw.Type().Name()), xRaw.Addr())
 	resourceBase := goext.NewResourceBase(schema.env, schema, NewLogger(schema.env))
 	setValue(resource.FieldByName("ResourceBase"), reflect.ValueOf(resourceBase))
-	return resource.Addr().Interface(), nil
+	return resource.Addr().Interface().(goext.IResourceBase), nil
 }
 
 // FetchRaw fetches a raw resource by ID
 func (schema *Schema) FetchRaw(id string, requestContext goext.Context) (interface{}, error) {
-	return schema.fetchImpl(id, requestContext, func(ctx context.Context, tx goext.ITransaction, filter goext.Filter) (map[string]interface{}, error) {
+	return schema.fetchRawImpl(id, requestContext, func(ctx context.Context, tx goext.ITransaction, filter goext.Filter) (map[string]interface{}, error) {
 		return tx.Fetch(ctx, schema, filter)
 	})
 }
 
 // LockFetchRaw locks and fetches resource by ID
 func (schema *Schema) LockFetchRaw(id string, requestContext goext.Context, policy goext.LockPolicy) (interface{}, error) {
-	return schema.fetchImpl(id, requestContext, func(ctx context.Context, tx goext.ITransaction, filter goext.Filter) (map[string]interface{}, error) {
+	return schema.fetchRawImpl(id, requestContext, func(ctx context.Context, tx goext.ITransaction, filter goext.Filter) (map[string]interface{}, error) {
 		return tx.LockFetch(ctx, schema, filter, policy)
 	})
 }
@@ -257,9 +257,9 @@ func (schema *Schema) StateFetchRaw(id string, requestContext goext.Context) (go
 	return tx.StateFetch(goext.GetContext(requestContext), schema, goext.Filter{"id": id})
 }
 
-type fetchFunc func(ctx context.Context, tx goext.ITransaction, filter goext.Filter) (map[string]interface{}, error)
+type fetchRawFn func(ctx context.Context, tx goext.ITransaction, filter goext.Filter) (map[string]interface{}, error)
 
-func (schema *Schema) fetchImpl(id string, requestContext goext.Context, fetch fetchFunc) (interface{}, error) {
+func (schema *Schema) fetchRawImpl(id string, requestContext goext.Context, fetch fetchRawFn) (interface{}, error) {
 	tx := mustGetOpenTransactionFromContext(requestContext)
 
 	filter := goext.Filter{"id": id}
@@ -278,7 +278,7 @@ func (schema *Schema) fetchImpl(id string, requestContext goext.Context, fetch f
 
 // Fetch fetches a resource by id.
 // Schema, Logger, Environment and pointer to raw resource are required fields in the resource
-func (schema *Schema) Fetch(id string, context goext.Context) (interface{}, error) {
+func (schema *Schema) Fetch(id string, context goext.Context) (goext.IResourceBase, error) {
 	fetched, err := schema.FetchRaw(id, context)
 	if err != nil {
 		return nil, err
@@ -289,7 +289,7 @@ func (schema *Schema) Fetch(id string, context goext.Context) (interface{}, erro
 
 // LockFetch fetches a resource by id.
 // Schema, Logger, Environment and pointer to raw resource are required fields in the resource
-func (schema *Schema) LockFetch(id string, context goext.Context, lockPolicy goext.LockPolicy) (interface{}, error) {
+func (schema *Schema) LockFetch(id string, context goext.Context, lockPolicy goext.LockPolicy) (goext.IResourceBase, error) {
 	fetched, err := schema.LockFetchRaw(id, context, lockPolicy)
 	if err != nil {
 		return nil, err
@@ -412,7 +412,6 @@ func (schema *Schema) update(rawResource interface{}, requestContext goext.Conte
 
 	return nil
 }
-
 
 // DbStateUpdateRaw updates states of a raw resource
 func (schema *Schema) DbStateUpdateRaw(rawResource interface{}, requestContext goext.Context, state *goext.ResourceState) error {
